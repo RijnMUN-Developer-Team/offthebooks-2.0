@@ -13,10 +13,9 @@ function env(name: string) {
 
 export const adminUsername = () => env("RIJNMUN_ADMIN_USERNAME");
 export const adminPassword = () => env("RIJNMUN_ADMIN_PASSWORD");
-const sessionSecret = () => env("RIJNMUN_SESSION_SECRET") || adminPassword();
 
 export function hasAdminConfiguration() {
-  return Boolean(adminUsername() && adminPassword() && sessionSecret());
+  return Boolean(adminUsername() && adminPassword());
 }
 
 export function safeEqual(left: unknown, right: unknown) {
@@ -26,7 +25,7 @@ export function safeEqual(left: unknown, right: unknown) {
 }
 
 function sign(payload: string) {
-  const secret = sessionSecret();
+  const secret = adminPassword();
   return secret ? createHmac("sha256", secret).update(payload).digest("base64url") : "";
 }
 
