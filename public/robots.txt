@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /webdashadmin
+
+Sitemap: https://www.rijnmun.org/sitemap.xml

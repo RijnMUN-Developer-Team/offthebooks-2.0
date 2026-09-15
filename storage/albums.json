@@ -1,0 +1,36 @@
+[
+  {
+    "id": "rijnmun-2025",
+    "title": "RijnMUN 2025",
+    "year": "2025",
+    "description": "Delegates, student officers and volunteers at the second edition of RijnMUN.",
+    "published": true,
+    "createdAt": "2025-10-12T00:00:00.000Z",
+    "photos": [
+      {
+        "id": "2025-1",
+        "src": "/images/rijnmun-photo1.webp",
+        "alt": "Delegates from Cuba and Colombia researching during RijnMUN",
+        "caption": "Preparing in committee"
+      },
+      {
+        "id": "2025-2",
+        "src": "/images/rijnmun-photo2.webp",
+        "alt": "RijnMUN committee session with delegates and student officers",
+        "caption": "Committee in session"
+      },
+      {
+        "id": "2025-3",
+        "src": "/images/rijnmun-photo3.webp",
+        "alt": "RijnMUN delegates listening to a student officer",
+        "caption": "Points and procedure"
+      },
+      {
+        "id": "2025-4",
+        "src": "/images/rijnmun-photo4.webp",
+        "alt": "RijnMUN delegates collaborating on a laptop",
+        "caption": "Building consensus"
+      }
+    ]
+  }
+]

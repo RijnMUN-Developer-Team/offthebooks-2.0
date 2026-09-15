@@ -1,0 +1,38 @@
+{
+  "conference": {
+    "dateLabel": "20–22 November 2026",
+    "location": "Het Rijnlands Lyceum Oegstgeest",
+    "address": "Apollolaan 1, 2341 BA Oegstgeest, The Netherlands",
+    "email": "info@rijnmun.org"
+  },
+  "forms": {
+    "school": "https://forms.gle/YnfHWGUubXNuQQWn9",
+    "individual": "https://forms.gle/3txXmHfF5M9DBeUQ8",
+    "officer": "",
+    "rlo": "https://forms.gle/3txXmHfF5M9DBeUQ8"
+  },
+  "social": {
+    "instagram": "https://www.instagram.com/rijn.mun?igsh=cWtvcHhlZzN3N2R5",
+    "tiktok": "https://www.tiktok.com/@rijn_mun"
+  },
+  "home": {
+    "heroEyebrow": "Debate · Diplomacy · A brighter tomorrow",
+    "heroSubtitle": "Rijnlands Lyceum Oegstgeest\nModel United Nations",
+    "aboutLabel": "About RijnMUN",
+    "aboutHeading": "Where diplomacy begins.",
+    "aboutBodyOne": "Model United Nations is an educational simulation in which students represent countries, debate current global issues and build solutions together.",
+    "aboutBodyTwo": "Hosted by students of Het Rijnlands Lyceum Oegstgeest, RijnMUN is deliberately small and beginner-friendly—giving delegates aged 14–18 a supported first step into the MUN community.",
+    "committeesHeading": "Convergence: where perspectives unite for global progress.",
+    "journeyHeading": "From registration to the assembly.",
+    "newsHeading": "From the Secretariat.",
+    "ctaHeading": "Be part of the conversation."
+  },
+  "announcement": {
+    "enabled": true,
+    "label": "Secretariat announcement",
+    "title": "Registration for RijnMUN 2026 is open.",
+    "body": "School delegations and individual delegates can now secure their place for November.",
+    "linkLabel": "View registration",
+    "link": "/registration"
+  }
+}
