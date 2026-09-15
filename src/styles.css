@@ -25,4 +25,5 @@
 .socials img{width:15px;filter:invert(1)}.contact-social img{width:17px;height:17px;object-fit:contain}
 .site-header,.site-header.is-solid{background:rgba(255,255,255,.97);color:var(--ink);box-shadow:0 1px 0 rgba(9,39,71,.12);backdrop-filter:blur(14px)}.brand img{filter:none}.nav-register{border-color:var(--blue);color:var(--ink)}.menu-button{color:var(--ink)!important}.about-copy{order:-1}.status-opening-soon i{background:var(--gold);box-shadow:0 0 0 4px rgba(199,164,76,.15)}
 @media(max-width:800px){.about-copy{order:0}}
+.visual-edit-mode [data-visual-key]{cursor:crosshair!important;outline:1px dashed transparent;outline-offset:3px;transition:outline-color .15s,box-shadow .15s}.visual-edit-mode [data-visual-key]:hover{outline:2px solid #19a9eb;box-shadow:0 0 0 5px rgba(25,169,235,.2)}.visual-edit-mode [data-visual-key].visual-selected{outline:3px solid #f0b83a;box-shadow:0 0 0 6px rgba(240,184,58,.25)}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

@@ -10,6 +10,7 @@ export type SiteContent = {
     journeyHeading: string; newsHeading: string; ctaHeading: string;
   };
   announcement: { enabled: boolean; label: string; title: string; body: string; linkLabel: string; link: string };
+  visual: Record<string, { type: "text" | "image"; value: string; alt?: string }>;
 };
 
 export const defaultSiteContent: SiteContent = {
@@ -24,7 +25,8 @@ export const defaultSiteContent: SiteContent = {
     committeesHeading: "Convergence: where perspectives unite for global progress.", journeyHeading: "From registration to the assembly.",
     newsHeading: "From the Secretariat.", ctaHeading: "Be part of the conversation."
   },
-  announcement: { enabled: true, label: "Secretariat announcement", title: "Registration for RijnMUN 2026 is open.", body: "School delegations and individual delegates can now secure their place for November.", linkLabel: "View registration", link: "/registration" }
+  announcement: { enabled: true, label: "Secretariat announcement", title: "Registration for RijnMUN 2026 is open.", body: "School delegations and individual delegates can now secure their place for November.", linkLabel: "View registration", link: "/registration" },
+  visual: {},
 };
 
 function mergeContent(value: Partial<SiteContent>): SiteContent {
@@ -34,6 +36,7 @@ function mergeContent(value: Partial<SiteContent>): SiteContent {
     social: { ...defaultSiteContent.social, ...value.social },
     home: { ...defaultSiteContent.home, ...value.home },
     announcement: { ...defaultSiteContent.announcement, ...value.announcement },
+    visual: { ...defaultSiteContent.visual, ...value.visual },
   };
 }
 

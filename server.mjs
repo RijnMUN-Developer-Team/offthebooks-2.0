@@ -141,6 +141,10 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024, files: 20 },
   fileFilter: (_, file, done) => done(null, ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.mimetype)),
 });
+app.post("/api/admin/assets", requireAdmin, upload.single("asset"), (request, response) => {
+  if (!request.file) return response.status(400).json({ error: "Choose a supported image file" });
+  response.status(201).json({ src: `/uploads/${request.file.filename}`, filename: request.file.originalname });
+});
 app.post("/api/admin/albums/:id/photos", requireAdmin, upload.array("photos", 20), (request, response) => {
   const albums = readJson(albumsFile, []); const album = albums.find((item) => item.id === request.params.id);
   if (!album) return response.status(404).json({ error: "Album not found" });

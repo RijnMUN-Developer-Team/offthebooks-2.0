@@ -71,7 +71,7 @@ function Header() {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
   return (
-    <header className={`site-header ${scrolled || location.pathname !== "/" ? "is-solid" : ""}`}>
+    <><VisualEditingBridge /><header className={`site-header ${scrolled || location.pathname !== "/" ? "is-solid" : ""}`}>
       <Link to="/" className="brand" aria-label="RijnMUN home">
         <img src="/images/logo.webp" alt="RijnMUN globe and laurel logo" />
         <span><b>RIJNMUN</b><small>OEGSTGEEST</small></span>
@@ -92,7 +92,7 @@ function Header() {
           </motion.div>
         )}
       </AnimatePresence>
-    </header>
+    </header></>
   );
 }
 
@@ -251,6 +251,80 @@ function MetaAndScroll() {
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute("content", description);
   }, [location.pathname]);
+  return null;
+}
+
+function getVisualPath(element: Element) {
+  const parts: string[] = [];
+  let current: Element | null = element;
+  while (current && current.tagName.toLowerCase() !== "body") {
+    const tag = current.tagName.toLowerCase();
+    const siblings = current.parentElement ? [...current.parentElement.children].filter((child) => child.tagName === current?.tagName) : [];
+    parts.unshift(`${tag}:nth-of-type(${Math.max(1, siblings.indexOf(current) + 1)})`);
+    current = current.parentElement;
+  }
+  return parts.join(">");
+}
+
+function VisualEditingBridge() {
+  const location = useLocation();
+  const content = useSiteContent();
+  const preview = window.self !== window.top;
+  const [editMode, setEditMode] = useState(false);
+
+  useEffect(() => {
+    if (!preview) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "rijnmun-editor-mode") setEditMode(event.data.mode === "edit");
+      if (event.data?.type === "rijnmun-editor-selected") {
+        document.querySelectorAll(".visual-selected").forEach((node) => node.classList.remove("visual-selected"));
+        if (event.data.key) document.querySelector(`[data-visual-key="${CSS.escape(event.data.key)}"]`)?.classList.add("visual-selected");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    window.parent.postMessage({ type: "rijnmun-preview-route", path: location.pathname }, window.location.origin);
+    return () => window.removeEventListener("message", onMessage);
+  }, [location.pathname, preview]);
+
+  useEffect(() => {
+    document.body.classList.toggle("visual-edit-mode", preview && editMode);
+    const candidates = "h1,h2,h3,h4,p,li,a,button,span,b,strong,small,time,blockquote,address,figcaption,img";
+    const scan = () => {
+      document.querySelectorAll(candidates).forEach((node) => {
+        const element = node as HTMLElement;
+        const isImage = element instanceof HTMLImageElement;
+        if (!isImage && element.children.length > 0) return;
+        if (!isImage && !element.textContent?.trim()) return;
+        const key = `${location.pathname}::${getVisualPath(element)}`;
+        const override = content.visual[key];
+        if (override?.type === "image" && isImage) {
+          if (element.getAttribute("src") !== override.value) element.setAttribute("src", override.value);
+          if (override.alt !== undefined) element.setAttribute("alt", override.alt);
+        }
+        if (override?.type === "text" && !isImage && element.textContent !== override.value) element.textContent = override.value;
+        if (preview) element.dataset.visualKey = key;
+      });
+    };
+    scan();
+    const observer = new MutationObserver(scan);
+    observer.observe(document.body, { childList: true, subtree: true });
+    const onClick = (event: MouseEvent) => {
+      if (!preview || !editMode) return;
+      const target = (event.target as Element).closest<HTMLElement>("[data-visual-key]");
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const image = target instanceof HTMLImageElement;
+      window.parent.postMessage({ type: "rijnmun-preview-select", key: target.dataset.visualKey, fieldType: image ? "image" : "text", value: image ? target.getAttribute("src") : target.textContent, alt: image ? target.getAttribute("alt") : undefined, tag: target.tagName.toLowerCase(), path: location.pathname }, window.location.origin);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", onClick, true);
+      document.body.classList.remove("visual-edit-mode");
+    };
+  }, [content.visual, editMode, location.pathname, preview]);
   return null;
 }
 

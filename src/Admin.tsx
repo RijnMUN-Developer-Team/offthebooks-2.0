@@ -1,13 +1,20 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2, Eye, EyeOff, FileText, Images, LayoutDashboard, Link2, Loader2,
-  LogOut, Monitor, Plus, Save, Share2, Smartphone, Upload,
+  CheckCircle2, ExternalLink, Eye, EyeOff, FileText, Image as ImageIcon, Images, LayoutDashboard, Link2, Loader2,
+  LogOut, Monitor, MousePointer2, Navigation, Plus, RotateCcw, Save, Share2, Smartphone, Upload,
 } from "lucide-react";
 import { defaultSiteContent, SiteContent } from "./site-content";
 
 type AlbumPhoto = { id: string; src: string; alt: string; caption: string };
 type Album = { id: string; title: string; year: string; description: string; published: boolean; photos: AlbumPhoto[] };
 type Tab = "overview" | "content" | "forms" | "albums" | "social";
+type VisualSelection = { key: string; fieldType: "text" | "image"; value: string; alt?: string; tag: string; path: string };
+
+const previewPages = [
+  ["Homepage", "/"], ["General information", "/rijnmun-2026"], ["Committees", "/committees"],
+  ["Programme", "/programme"], ["Board", "/board"], ["Speakers", "/speakers"], ["Venue", "/venue"],
+  ["Registration", "/registration"], ["Resources", "/resources"], ["News", "/news"], ["Photo archive", "/archive"], ["Contact", "/contact"],
+] as const;
 
 const fields: Array<{ section: keyof SiteContent; key: string; label: string; multiline?: boolean }> = [
   { section: "conference", key: "dateLabel", label: "Conference dates" },
@@ -46,7 +53,8 @@ export function AdminPage() {
   const load = async () => {
     const [contentResponse, albumResponse] = await Promise.all([api("/api/admin/content"), api("/api/admin/albums")]);
     if (contentResponse.status === 401 || albumResponse.status === 401) { setAuthenticated(false); return; }
-    const nextContent = await contentResponse.json();
+    const rawContent = await contentResponse.json();
+    const nextContent: SiteContent = { ...defaultSiteContent, ...rawContent, conference: { ...defaultSiteContent.conference, ...rawContent.conference }, forms: { ...defaultSiteContent.forms, ...rawContent.forms }, social: { ...defaultSiteContent.social, ...rawContent.social }, home: { ...defaultSiteContent.home, ...rawContent.home }, announcement: { ...defaultSiteContent.announcement, ...rawContent.announcement }, visual: { ...defaultSiteContent.visual, ...rawContent.visual } };
     setContent(nextContent); setSavedContent(nextContent); setAlbums(await albumResponse.json()); setAuthenticated(true);
   };
   useEffect(() => { api("/api/admin/session").then((response) => response.ok ? load() : setAuthenticated(false)).catch(() => setAuthenticated(false)); }, []);
@@ -82,7 +90,7 @@ export function AdminPage() {
       <header className="admin-topbar"><div><span>RijnMUN 2026</span><b>Secretariat workspace</b></div><div className="admin-save-state">{dirty ? "Unsaved changes" : "All changes saved"}<i className={dirty ? "dirty" : ""} /></div></header>
       {message && <div className="admin-toast"><CheckCircle2 />{message}</div>}
       {tab === "overview" && <Overview content={content} albums={albums} go={setTab} />}
-      {tab === "content" && <VisualEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
+      {tab === "content" && <WholeSiteVisualEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
       {tab === "forms" && <FormsEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
       {tab === "albums" && <AlbumsEditor albums={albums} reload={load} />}
       {tab === "social" && <SocialEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
@@ -113,6 +121,105 @@ function VisualEditor({ content, setContent, save, dirty }: { content: SiteConte
   const iframe = useRef<HTMLIFrameElement>(null); const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   useEffect(() => { iframe.current?.contentWindow?.postMessage({ type: "rijnmun-preview", content }, window.location.origin); }, [content]);
   return <section className="admin-page editor-page"><div className="admin-page-heading"><p className="admin-kicker">Visual content editor</p><h1>Edit the website in context.</h1><p>Changes appear in the live preview immediately. They become public only after saving.</p></div><div className="visual-editor"><div className="field-panel"><label className="toggle-row"><input type="checkbox" checked={content.announcement.enabled} onChange={(event) => setContent(setNested(content, "announcement", "enabled", event.target.checked))} /><span><b>Show homepage announcement</b><small>Display the Secretariat announcement below the countdown.</small></span></label>{fields.map((field) => <label key={`${field.section}.${field.key}`}>{field.label}{field.multiline ? <textarea rows={4} value={String((content[field.section] as unknown as Record<string, unknown>)[field.key] ?? "")} onChange={(event) => setContent(setNested(content, field.section, field.key, event.target.value))} /> : <input value={String((content[field.section] as unknown as Record<string, unknown>)[field.key] ?? "")} onChange={(event) => setContent(setNested(content, field.section, field.key, event.target.value))} />}</label>)}</div><div className="preview-panel"><div className="preview-toolbar"><span>Live homepage preview</span><div><button className={device === "desktop" ? "active" : ""} onClick={() => setDevice("desktop")} aria-label="Desktop preview"><Monitor /></button><button className={device === "mobile" ? "active" : ""} onClick={() => setDevice("mobile")} aria-label="Mobile preview"><Smartphone /></button></div></div><div className={`preview-frame ${device}`}><iframe ref={iframe} title="Live website preview" src="/?preview=1" onLoad={() => iframe.current?.contentWindow?.postMessage({ type: "rijnmun-preview", content }, window.location.origin)} /></div></div></div><SaveBar save={save} dirty={dirty} /></section>;
+}
+
+function WholeSiteVisualEditor({ content, setContent, save, dirty }: { content: SiteContent; setContent: (value: SiteContent) => void; save: () => void; dirty: boolean }) {
+  const iframe = useRef<HTMLIFrameElement>(null);
+  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [mode, setMode] = useState<"browse" | "edit">("edit");
+  const [currentPath, setCurrentPath] = useState("/");
+  const [selection, setSelection] = useState<VisualSelection | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const previewStage = useRef<HTMLDivElement>(null);
+  const [previewBounds, setPreviewBounds] = useState({ width: 1000, height: 700 });
+
+  useEffect(() => {
+    if (!previewStage.current) return;
+    const measure = () => {
+      const bounds = previewStage.current?.getBoundingClientRect();
+      if (bounds) setPreviewBounds({ width: bounds.width, height: bounds.height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(previewStage.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const previewBaseWidth = device === "desktop" ? 1420 : 390;
+  const previewInset = 24;
+  const previewScale = Math.min(1, Math.max(.2, (previewBounds.width - previewInset) / previewBaseWidth));
+  const previewVisibleHeight = Math.max(320, previewBounds.height - previewInset);
+
+  const postToPreview = () => {
+    iframe.current?.contentWindow?.postMessage({ type: "rijnmun-preview", content }, window.location.origin);
+    iframe.current?.contentWindow?.postMessage({ type: "rijnmun-editor-mode", mode }, window.location.origin);
+  };
+  useEffect(postToPreview, [content, mode]);
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "rijnmun-preview-route") {
+        setCurrentPath(event.data.path || "/");
+        iframe.current?.contentWindow?.postMessage({ type: "rijnmun-preview", content }, window.location.origin);
+        iframe.current?.contentWindow?.postMessage({ type: "rijnmun-editor-mode", mode }, window.location.origin);
+      }
+      if (event.data?.type === "rijnmun-preview-select") {
+        const next = event.data as VisualSelection & { type: string };
+        setSelection({ key: next.key, fieldType: next.fieldType, value: next.value || "", alt: next.alt || "", tag: next.tag, path: next.path });
+        iframe.current?.contentWindow?.postMessage({ type: "rijnmun-editor-selected", key: next.key }, window.location.origin);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [content, mode]);
+
+  const openPage = (path: string) => {
+    setCurrentPath(path); setSelection(null);
+    if (iframe.current) iframe.current.src = `${path}?preview=1`;
+  };
+  const updateSelection = (value: string, alt = selection?.alt) => {
+    if (!selection) return;
+    const nextSelection = { ...selection, value, alt };
+    setSelection(nextSelection);
+    setContent({ ...content, visual: { ...content.visual, [selection.key]: { type: selection.fieldType, value, ...(selection.fieldType === "image" ? { alt } : {}) } } });
+  };
+  const resetSelection = () => {
+    if (!selection) return;
+    const visual = { ...content.visual }; delete visual[selection.key];
+    setContent({ ...content, visual }); setSelection(null);
+    window.setTimeout(() => iframe.current?.contentWindow?.location.reload(), 0);
+  };
+  const uploadImage = async (files: FileList | null) => {
+    if (!selection || !files?.[0]) return;
+    setUploading(true);
+    const data = new FormData(); data.append("asset", files[0]);
+    const response = await api("/api/admin/assets", { method: "POST", body: data });
+    if (response.ok) { const result = await response.json(); updateSelection(result.src, selection.alt); }
+    setUploading(false);
+  };
+
+  return <section className="admin-page editor-page whole-site-editor">
+    <div className="admin-page-heading"><p className="admin-kicker">Whole-site visual editor</p><h1>Edit every page in context.</h1><p>Browse the website normally, switch to Select content, then click any highlighted text or image to edit it. Changes stay private until you publish.</p></div>
+    <div className="whole-editor-layout">
+      <aside className="visual-inspector">
+        <div className="inspector-title"><MousePointer2 /><div><b>{selection ? `Edit ${selection.fieldType}` : "Select content"}</b><small>{selection ? `${selection.path} · ${selection.tag}` : "Click highlighted content in the preview"}</small></div></div>
+        {selection ? <div className="selection-editor">
+          {selection.fieldType === "text" ? <label>Text<textarea rows={8} value={selection.value} onChange={(event) => updateSelection(event.target.value)} /></label> : <><div className="selected-image"><img src={selection.value} alt="Selected website asset" /></div><label>Image URL<input value={selection.value} onChange={(event) => updateSelection(event.target.value)} /></label><label>Alternative text<input value={selection.alt || ""} onChange={(event) => updateSelection(selection.value, event.target.value)} /></label><label className="inspector-upload">{uploading ? <Loader2 className="spin" /> : <Upload />} {uploading ? "Uploading…" : "Upload replacement"}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => uploadImage(event.target.files)} /></label></>}
+          <button className="reset-override" onClick={resetSelection}><RotateCcw />Restore original</button>
+        </div> : <div className="inspector-empty"><MousePointer2 /><p>Choose <b>Select content</b>, then click a text block or photograph on any page.</p><span>Use Browse mode whenever you want links and page controls to behave normally.</span></div>}
+        <details className="global-settings"><summary>Global website settings</summary><label className="toggle-row"><input type="checkbox" checked={content.announcement.enabled} onChange={(event) => setContent(setNested(content, "announcement", "enabled", event.target.checked))} /><span><b>Show homepage announcement</b><small>Visible below the countdown</small></span></label>{fields.map((field) => <label key={`${field.section}.${field.key}`}>{field.label}{field.multiline ? <textarea rows={3} value={String((content[field.section] as unknown as Record<string, unknown>)[field.key] ?? "")} onChange={(event) => setContent(setNested(content, field.section, field.key, event.target.value))} /> : <input value={String((content[field.section] as unknown as Record<string, unknown>)[field.key] ?? "")} onChange={(event) => setContent(setNested(content, field.section, field.key, event.target.value))} />}</label>)}</details>
+      </aside>
+      <div className="preview-panel whole-preview">
+        <div className="whole-preview-toolbar">
+          <label><span>Page</span><select value={currentPath} onChange={(event) => openPage(event.target.value)}>{previewPages.map(([label, path]) => <option key={path} value={path}>{label}</option>)}</select></label>
+          <div className="interaction-switch"><button className={mode === "browse" ? "active" : ""} onClick={() => setMode("browse")}><Navigation />Browse</button><button className={mode === "edit" ? "active" : ""} onClick={() => setMode("edit")}><MousePointer2 />Select content</button></div>
+          <div className="device-switch"><button className={device === "desktop" ? "active" : ""} onClick={() => setDevice("desktop")} aria-label="Desktop preview"><Monitor /></button><button className={device === "mobile" ? "active" : ""} onClick={() => setDevice("mobile")} aria-label="Mobile preview"><Smartphone /></button><a href={currentPath} target="_blank" rel="noreferrer" aria-label="Open page in a new tab"><ExternalLink /></a></div>
+        </div>
+        <div ref={previewStage} className={`preview-frame whole ${device}`}><div className="preview-canvas" style={{ width: previewBaseWidth * previewScale, height: previewVisibleHeight }}><iframe ref={iframe} title="Whole website live preview" src="/?preview=1" onLoad={postToPreview} style={{ width: previewBaseWidth, height: previewVisibleHeight / previewScale, transform: `scale(${previewScale})` }} /></div></div>
+      </div>
+    </div>
+    <SaveBar save={save} dirty={dirty} />
+  </section>;
 }
 
 function FormsEditor({ content, setContent, save, dirty }: { content: SiteContent; setContent: (value: SiteContent) => void; save: () => void; dirty: boolean }) {
