@@ -85,12 +85,6 @@ export const committees: Committee[] = [
   },
 ];
 
-export const programme = [
-  { day: "DAY 01", date: "Friday 20 November", events: [{ time: "TBA", title: "Arrival, workshops & lobbying", note: "The detailed programme will be announced by the Secretariat." }] },
-  { day: "DAY 02", date: "Saturday 21 November", events: [{ time: "TBA", title: "Opening ceremony & committee sessions", note: "Timings and room assignments are to be announced." }] },
-  { day: "DAY 03", date: "Sunday 22 November", events: [{ time: "TBA", title: "Committee sessions & closing ceremony", note: "Timings and final logistics are to be announced." }] },
-];
-
 export const resources = [
   { title: "Delegate Handbook", type: "PDF · 2025 edition", description: "Rules, preparation guidance, procedures and useful phrases for first-time delegates.", href: "/documents/delegate-handbook.pdf" },
   { title: "Note Paper Template", type: "PDF template", description: "Printable note paper for formal communication during committee sessions.", href: "/documents/note-paper-template.pdf" },

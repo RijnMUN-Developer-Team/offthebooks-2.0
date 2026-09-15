@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+export type ProgrammeEvent = { id: string; time: string; title: string; note: string };
+export type ProgrammeDay = { id: string; label: string; date: string; events: ProgrammeEvent[] };
+
 export type SiteContent = {
   conference: { dateLabel: string; location: string; address: string; email: string };
   forms: { school: string; individual: string; officer: string; rlo: string };
@@ -10,6 +13,7 @@ export type SiteContent = {
     journeyHeading: string; newsHeading: string; ctaHeading: string;
   };
   announcement: { enabled: boolean; label: string; title: string; body: string; linkLabel: string; link: string };
+  programme: { notice: string; days: ProgrammeDay[] };
   visual: Record<string, { type: "text" | "image"; value: string; alt?: string }>;
 };
 
@@ -26,16 +30,29 @@ export const defaultSiteContent: SiteContent = {
     newsHeading: "From the Secretariat.", ctaHeading: "Be part of the conversation."
   },
   announcement: { enabled: true, label: "Secretariat announcement", title: "Registration for RijnMUN 2026 is open.", body: "School delegations and individual delegates can now secure their place for November.", linkLabel: "View registration", link: "/registration" },
+  programme: {
+    notice: "The detailed 2026 timetable has not yet been released. This page will update once timings are confirmed.",
+    days: [
+      { id: "day-1", label: "DAY 01", date: "Friday 20 November", events: [{ id: "day-1-event-1", time: "TBA", title: "Arrival, workshops & lobbying", note: "The detailed programme will be announced by the Secretariat." }] },
+      { id: "day-2", label: "DAY 02", date: "Saturday 21 November", events: [{ id: "day-2-event-1", time: "TBA", title: "Opening ceremony & committee sessions", note: "Timings and room assignments are to be announced." }] },
+      { id: "day-3", label: "DAY 03", date: "Sunday 22 November", events: [{ id: "day-3-event-1", time: "TBA", title: "Committee sessions & closing ceremony", note: "Timings and final logistics are to be announced." }] },
+    ],
+  },
   visual: {},
 };
 
-function mergeContent(value: Partial<SiteContent>): SiteContent {
+export function mergeSiteContent(value: Partial<SiteContent>): SiteContent {
   return {
     conference: { ...defaultSiteContent.conference, ...value.conference },
     forms: { ...defaultSiteContent.forms, ...value.forms },
     social: { ...defaultSiteContent.social, ...value.social },
     home: { ...defaultSiteContent.home, ...value.home },
     announcement: { ...defaultSiteContent.announcement, ...value.announcement },
+    programme: {
+      ...defaultSiteContent.programme,
+      ...value.programme,
+      days: Array.isArray(value.programme?.days) ? value.programme.days : defaultSiteContent.programme.days,
+    },
     visual: { ...defaultSiteContent.visual, ...value.visual },
   };
 }
@@ -46,11 +63,11 @@ export function SiteContentProvider({ children }: { children: React.ReactNode })
   const [content, setContent] = useState(defaultSiteContent);
   useEffect(() => {
     let active = true;
-    const refresh = () => fetch("/api/public/content", { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject()).then((value) => { if (active) setContent(mergeContent(value)); }).catch(() => {});
+    const refresh = () => fetch("/api/public/content", { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject()).then((value) => { if (active) setContent(mergeSiteContent(value)); }).catch(() => {});
     refresh();
     const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("rijnmun-content") : null;
     if (channel) channel.onmessage = refresh;
-    const onMessage = (event: MessageEvent) => { if (event.origin === window.location.origin && event.data?.type === "rijnmun-preview") setContent(mergeContent(event.data.content)); };
+    const onMessage = (event: MessageEvent) => { if (event.origin === window.location.origin && event.data?.type === "rijnmun-preview") setContent(mergeSiteContent(event.data.content)); };
     window.addEventListener("message", onMessage);
     window.addEventListener("focus", refresh);
     return () => { active = false; channel?.close(); window.removeEventListener("message", onMessage); window.removeEventListener("focus", refresh); };

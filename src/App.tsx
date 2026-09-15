@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { board, committees, conference, journey, news, programme, registrations, resources, speakers } from "./data";
+import { board, committees, conference, journey, news, registrations, resources, speakers } from "./data";
 import { AdminPage } from "./Admin";
 import { ArchivePage } from "./Archive";
 import { SiteContentProvider, useSiteContent } from "./site-content";
@@ -212,7 +212,8 @@ function CommitteesPage() {
 }
 
 function ProgrammePage() {
-  return <><PageHero eyebrow="20–22 November 2026" title="Programme of events." intro="Three days of workshops, committee sessions, debate and ceremony." image="/images/rijnmun-photo3.webp" /><main className="page-main"><section className="programme"><p className="programme-note"><Clock3 /> The detailed 2026 timetable has not yet been released. This page will update from the central programme data once timings are confirmed.</p>{programme.map((day, dayIndex) => <Reveal className="programme-day" key={day.day}><div className="day-title"><span>{day.day}</span><h2>{day.date}</h2></div><div className="events">{day.events.map((event, index) => <article key={index}><time>{event.time}</time><div><h3>{event.title}</h3><p>{event.note}</p></div></article>)}</div></Reveal>)}</section><CtaBand /></main></>;
+  const content = useSiteContent();
+  return <><PageHero eyebrow={content.conference.dateLabel} title="Programme of events." intro="Three days of workshops, committee sessions, debate and ceremony." image="/images/rijnmun-photo3.webp" /><main className="page-main"><section className="programme">{content.programme.notice && <p className="programme-note"><Clock3 /> {content.programme.notice}</p>}{content.programme.days.length ? content.programme.days.map((day) => <Reveal className="programme-day" key={day.id}><div className="day-title"><span>{day.label}</span><h2>{day.date}</h2></div><div className="events">{day.events.map((event) => <article key={event.id}><time>{event.time}</time><div><h3>{event.title}</h3>{event.note && <p>{event.note}</p>}</div></article>)}</div></Reveal>) : <p className="programme-empty">The conference timetable will appear here once it is published by the Secretariat.</p>}</section><CtaBand /></main></>;
 }
 
 function PeoplePage({ kind }: { kind: "board" | "speakers" }) {

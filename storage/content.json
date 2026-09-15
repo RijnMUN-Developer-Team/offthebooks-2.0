@@ -35,6 +35,50 @@
     "linkLabel": "View registration",
     "link": "/registration"
   },
+  "programme": {
+    "notice": "The detailed 2026 timetable has not yet been released. This page will update once timings are confirmed.",
+    "days": [
+      {
+        "id": "day-1",
+        "label": "DAY 01",
+        "date": "Friday 20 November",
+        "events": [
+          {
+            "id": "day-1-event-1",
+            "time": "TBA",
+            "title": "Arrival, workshops & lobbying",
+            "note": "The detailed programme will be announced by the Secretariat."
+          }
+        ]
+      },
+      {
+        "id": "day-2",
+        "label": "DAY 02",
+        "date": "Saturday 21 November",
+        "events": [
+          {
+            "id": "day-2-event-1",
+            "time": "TBA",
+            "title": "Opening ceremony & committee sessions",
+            "note": "Timings and room assignments are to be announced."
+          }
+        ]
+      },
+      {
+        "id": "day-3",
+        "label": "DAY 03",
+        "date": "Sunday 22 November",
+        "events": [
+          {
+            "id": "day-3-event-1",
+            "time": "TBA",
+            "title": "Committee sessions & closing ceremony",
+            "note": "Timings and final logistics are to be announced."
+          }
+        ]
+      }
+    ]
+  },
   "visual": {
     "/::div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>section:nth-of-type(1)>div:nth-of-type(2)>p:nth-of-type(3)": {
       "type": "text",

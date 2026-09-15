@@ -1,13 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2, ExternalLink, Eye, EyeOff, FileText, Image as ImageIcon, Images, LayoutDashboard, Link2, Loader2,
-  LogOut, Monitor, MousePointer2, Navigation, Plus, RotateCcw, Save, Share2, Smartphone, Upload,
+  CalendarDays, CheckCircle2, ExternalLink, Eye, EyeOff, FileText, Image as ImageIcon, Images, LayoutDashboard, Link2, Loader2,
+  LogOut, Monitor, MousePointer2, Navigation, Plus, RotateCcw, Save, Share2, Smartphone, Trash2, Upload,
 } from "lucide-react";
-import { defaultSiteContent, SiteContent } from "./site-content";
+import { defaultSiteContent, mergeSiteContent, ProgrammeDay, ProgrammeEvent, SiteContent } from "./site-content";
 
 type AlbumPhoto = { id: string; src: string; alt: string; caption: string };
 type Album = { id: string; title: string; year: string; description: string; published: boolean; photos: AlbumPhoto[] };
-type Tab = "overview" | "content" | "forms" | "albums" | "social";
+type Tab = "overview" | "content" | "timetable" | "forms" | "albums" | "social";
 type VisualSelection = { key: string; fieldType: "text" | "image"; value: string; alt?: string; tag: string; path: string };
 
 const previewPages = [
@@ -54,7 +54,7 @@ export function AdminPage() {
     const [contentResponse, albumResponse] = await Promise.all([api("/api/admin/content"), api("/api/admin/albums")]);
     if (contentResponse.status === 401 || albumResponse.status === 401) { setAuthenticated(false); return; }
     const rawContent = await contentResponse.json();
-    const nextContent: SiteContent = { ...defaultSiteContent, ...rawContent, conference: { ...defaultSiteContent.conference, ...rawContent.conference }, forms: { ...defaultSiteContent.forms, ...rawContent.forms }, social: { ...defaultSiteContent.social, ...rawContent.social }, home: { ...defaultSiteContent.home, ...rawContent.home }, announcement: { ...defaultSiteContent.announcement, ...rawContent.announcement }, visual: { ...defaultSiteContent.visual, ...rawContent.visual } };
+    const nextContent = mergeSiteContent(rawContent);
     setContent(nextContent); setSavedContent(nextContent); setAlbums(await albumResponse.json()); setAuthenticated(true);
   };
   useEffect(() => { api("/api/admin/session").then((response) => response.ok ? load() : setAuthenticated(false)).catch(() => setAuthenticated(false)); }, []);
@@ -79,6 +79,7 @@ export function AdminPage() {
       <nav aria-label="Admin sections">
         <AdminNav current={tab} value="overview" icon={<LayoutDashboard />} label="Overview" setTab={setTab} />
         <AdminNav current={tab} value="content" icon={<FileText />} label="Visual content" setTab={setTab} />
+        <AdminNav current={tab} value="timetable" icon={<CalendarDays />} label="Timetable" setTab={setTab} />
         <AdminNav current={tab} value="forms" icon={<Link2 />} label="Registration forms" setTab={setTab} />
         <AdminNav current={tab} value="albums" icon={<Images />} label="Photo albums" setTab={setTab} />
         <AdminNav current={tab} value="social" icon={<Share2 />} label="Social media" setTab={setTab} />
@@ -91,6 +92,7 @@ export function AdminPage() {
       {message && <div className="admin-toast"><CheckCircle2 />{message}</div>}
       {tab === "overview" && <Overview content={content} albums={albums} go={setTab} />}
       {tab === "content" && <WholeSiteVisualEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
+      {tab === "timetable" && <TimetableEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
       {tab === "forms" && <FormsEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
       {tab === "albums" && <AlbumsEditor albums={albums} reload={load} />}
       {tab === "social" && <SocialEditor content={content} setContent={setContent} save={save} dirty={dirty} />}
@@ -108,7 +110,8 @@ function AdminNav({ current, value, icon, label, setTab }: { current: Tab; value
 
 function Overview({ content, albums, go }: { content: SiteContent; albums: Album[]; go: (tab: Tab) => void }) {
   const photoCount = albums.reduce((sum, album) => sum + album.photos.length, 0);
-  return <section className="admin-page"><div className="admin-page-heading"><p className="admin-kicker">Overview</p><h1>Good afternoon, Secretariat.</h1><p>Everything that changes often is managed from this workspace.</p></div><div className="admin-metrics"><article><span>Conference</span><strong>{content.conference.dateLabel}</strong><small>Public website</small></article><article><span>Photo archive</span><strong>{albums.length} albums</strong><small>{photoCount} published photos</small></article><article><span>Announcement</span><strong>{content.announcement.enabled ? "Visible" : "Hidden"}</strong><small>{content.announcement.title}</small></article></div><div className="admin-quick"><h2>Quick actions</h2><div><button onClick={() => go("content")}><FileText /><span><b>Edit website content</b><small>Open the live visual editor</small></span></button><button onClick={() => go("albums")}><Upload /><span><b>Upload conference photos</b><small>Add to an existing album</small></span></button><button onClick={() => go("forms")}><Link2 /><span><b>Update form links</b><small>Registration destinations</small></span></button></div></div></section>;
+  const eventCount = content.programme.days.reduce((sum, day) => sum + day.events.length, 0);
+  return <section className="admin-page"><div className="admin-page-heading"><p className="admin-kicker">Overview</p><h1>Good afternoon, Secretariat.</h1><p>Everything that changes often is managed from this workspace.</p></div><div className="admin-metrics"><article><span>Conference</span><strong>{content.conference.dateLabel}</strong><small>Public website</small></article><article><span>Photo archive</span><strong>{albums.length} albums</strong><small>{photoCount} published photos</small></article><article><span>Timetable</span><strong>{eventCount} events</strong><small>{content.programme.days.length} conference days</small></article></div><div className="admin-quick"><h2>Quick actions</h2><div><button onClick={() => go("content")}><FileText /><span><b>Edit website content</b><small>Open the live visual editor</small></span></button><button onClick={() => go("timetable")}><CalendarDays /><span><b>Update timetable</b><small>Edit days, times and sessions</small></span></button><button onClick={() => go("albums")}><Upload /><span><b>Upload conference photos</b><small>Add to an existing album</small></span></button><button onClick={() => go("forms")}><Link2 /><span><b>Update form links</b><small>Registration destinations</small></span></button></div></div></section>;
 }
 
 function setNested(content: SiteContent, section: keyof SiteContent, key: string, value: string | boolean): SiteContent {
@@ -116,6 +119,21 @@ function setNested(content: SiteContent, section: keyof SiteContent, key: string
 }
 
 function SaveBar({ save, dirty }: { save: () => void; dirty: boolean }) { return <div className="editor-save"><span>{dirty ? "You have unpublished changes." : "The website is up to date."}</span><button className="admin-primary" onClick={save} disabled={!dirty}><Save />Save & publish</button></div>; }
+
+function TimetableEditor({ content, setContent, save, dirty }: { content: SiteContent; setContent: (value: SiteContent) => void; save: () => void; dirty: boolean }) {
+  const setProgramme = (programme: SiteContent["programme"]) => setContent({ ...content, programme });
+  const updateDay = (dayIndex: number, patch: Partial<ProgrammeDay>) => setProgramme({ ...content.programme, days: content.programme.days.map((day, index) => index === dayIndex ? { ...day, ...patch } : day) });
+  const updateEvent = (dayIndex: number, eventIndex: number, patch: Partial<ProgrammeEvent>) => {
+    const day = content.programme.days[dayIndex];
+    updateDay(dayIndex, { events: day.events.map((event, index) => index === eventIndex ? { ...event, ...patch } : event) });
+  };
+  const addDay = () => setProgramme({ ...content.programme, days: [...content.programme.days, { id: crypto.randomUUID(), label: `DAY ${String(content.programme.days.length + 1).padStart(2, "0")}`, date: "Conference day", events: [] }] });
+  const removeDay = (dayIndex: number) => setProgramme({ ...content.programme, days: content.programme.days.filter((_, index) => index !== dayIndex) });
+  const addEvent = (dayIndex: number) => updateDay(dayIndex, { events: [...content.programme.days[dayIndex].events, { id: crypto.randomUUID(), time: "TBA", title: "New timetable item", note: "" }] });
+  const removeEvent = (dayIndex: number, eventIndex: number) => updateDay(dayIndex, { events: content.programme.days[dayIndex].events.filter((_, index) => index !== eventIndex) });
+
+  return <section className="admin-page timetable-editor"><div className="admin-page-heading heading-action"><div><p className="admin-kicker">Conference timetable</p><h1>Plan every conference day.</h1><p>Edit the notice, dates, times and session descriptions shown on the public Programme page.</p></div><a className="admin-secondary-link" href="/programme" target="_blank" rel="noreferrer"><ExternalLink />View programme</a></div><label className="timetable-notice"><span><b>Programme notice</b><small>Leave blank to hide the notice above the timetable.</small></span><textarea rows={3} value={content.programme.notice} onChange={(event) => setProgramme({ ...content.programme, notice: event.target.value })} /></label><div className="timetable-days">{content.programme.days.map((day, dayIndex) => <article className="timetable-day-card" key={day.id}><header><div><span>Conference day {dayIndex + 1}</span><h2>{day.date || "Untitled day"}</h2></div><button className="icon-danger" type="button" onClick={() => removeDay(dayIndex)} aria-label={`Remove ${day.date || `day ${dayIndex + 1}`}`}><Trash2 /></button></header><div className="day-fields"><label>Day label<input value={day.label} onChange={(event) => updateDay(dayIndex, { label: event.target.value })} /></label><label>Date heading<input value={day.date} onChange={(event) => updateDay(dayIndex, { date: event.target.value })} /></label></div><div className="timetable-events">{day.events.map((event, eventIndex) => <div className="timetable-event" key={event.id}><label>Time<input placeholder="09:00" value={event.time} onChange={(change) => updateEvent(dayIndex, eventIndex, { time: change.target.value })} /></label><label>Session title<input value={event.title} onChange={(change) => updateEvent(dayIndex, eventIndex, { title: change.target.value })} /></label><label className="event-note">Notes<textarea rows={2} value={event.note} onChange={(change) => updateEvent(dayIndex, eventIndex, { note: change.target.value })} /></label><button className="icon-danger event-remove" type="button" onClick={() => removeEvent(dayIndex, eventIndex)} aria-label={`Remove ${event.title}`}><Trash2 /></button></div>)}</div><button className="add-row-button" type="button" onClick={() => addEvent(dayIndex)}><Plus />Add timetable item</button></article>)}</div><button className="add-day-button" type="button" onClick={addDay}><Plus />Add conference day</button><SaveBar save={save} dirty={dirty} /></section>;
+}
 
 function VisualEditor({ content, setContent, save, dirty }: { content: SiteContent; setContent: (value: SiteContent) => void; save: () => void; dirty: boolean }) {
   const iframe = useRef<HTMLIFrameElement>(null); const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
