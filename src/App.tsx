@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import {
   ArrowDown,
   ArrowRight,
@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { board, committees, conference, journey, news, registrations, resources, speakers } from "./data";
 import { AdminPage } from "./Admin";
 import { ArchivePage } from "./Archive";
@@ -35,6 +35,10 @@ const nav = [
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
+function responsivePhoto(src: string) {
+  return /rijnmun-photo[23]\.webp$/.test(src) ? `${src.replace(".webp", "-800.webp")} 800w, ${src.replace(".webp", "-1600.webp")} 1600w, ${src.replace(".webp", "-2400.webp")} 2400w, ${src} 4896w` : undefined;
+}
+
 function Reveal({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const reduce = useReducedMotion();
   return (
@@ -43,7 +47,7 @@ function Reveal({ children, className = "", delay = 0 }: { children: React.React
       initial={reduce ? false : { opacity: 0, y: 26 }}
       whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.65, delay, ease }}
+      transition={{ duration: reduce ? 0 : 0.55, delay: reduce ? 0 : delay, ease }}
     >
       {children}
     </motion.div>
@@ -59,6 +63,9 @@ function Header() {
   const content = useSiteContent();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const reduce = useReducedMotion();
   const location = useLocation();
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -67,11 +74,24 @@ function Header() {
   }, []);
   useEffect(() => setOpen(false), [location.pathname]);
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); return; }
+      if (event.key !== "Tab") return;
+      const items = menuRef.current?.querySelectorAll<HTMLElement>("a, button");
+      if (!items?.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", onKey); triggerRef.current?.focus(); };
   }, [open]);
   return (
-    <><VisualEditingBridge /><header className={`site-header ${scrolled || location.pathname !== "/" ? "is-solid" : ""}`}>
+    <><VisualEditingBridge /><a className="skip-link" href="#main-content">Skip to content</a><header className={`site-header ${scrolled || location.pathname !== "/" ? "is-solid" : ""}`}>
       <Link to="/" className="brand" aria-label="RijnMUN home">
         <img src="/images/logo.webp" alt="RijnMUN globe and laurel logo" />
         <span><b>RIJNMUN</b><small>OEGSTGEEST</small></span>
@@ -80,10 +100,10 @@ function Header() {
         {nav.map(([label, href]) => <NavLink key={href} to={href} end={href === "/"}>{label}</NavLink>)}
       </nav>
       <Link to="/registration" className="nav-register">Register <ArrowRight size={16} /></Link>
-      <button className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open}><Menu /></button>
+      <button ref={triggerRef} className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} aria-controls="mobile-navigation"><Menu /></button>
       <AnimatePresence>
         {open && (
-          <motion.div className="mobile-menu" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: .45, ease }}>
+          <motion.div ref={menuRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-label="Website navigation" className="mobile-menu" initial={reduce ? false : { x: "100%" }} animate={{ x: 0 }} exit={reduce ? { opacity: 0 } : { x: "100%" }} transition={{ duration: reduce ? 0 : .35, ease }}>
             <button onClick={() => setOpen(false)} aria-label="Close menu"><X /></button>
             <div className="eyebrow">RijnMUN 2026</div>
             <nav aria-label="Mobile navigation">{nav.map(([label, href], index) => <motion.div key={href} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .08 + index * .04 }}><NavLink to={href} end={href === "/"}>{label}</NavLink></motion.div>)}</nav>
@@ -126,24 +146,32 @@ function Countdown() {
     [Math.floor((remaining / 60000) % 60), "Minutes"],
     [Math.floor((remaining / 1000) % 60), "Seconds"],
   ];
-  return <div className="countdown" aria-label="Countdown to RijnMUN 2026"><div className="countdown-label">Time until<br />RijnMUN 2026</div>{parts.map(([value, label]) => <div className="countdown-part" key={label}><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>)}<div className="countdown-quote">“Global challenges.<br />Student solutions.”</div></div>;
+  return <div className="countdown" aria-label="Countdown to RijnMUN 2026"><div className="countdown-label">Time until <br />RijnMUN 2026</div>{parts.map(([value, label]) => <div className="countdown-part" key={label}><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>)}<div className="countdown-quote">“Global challenges.<br />Student solutions.”</div></div>;
 }
 
 function Hero() {
   const content = useSiteContent();
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 900], [0, 110]);
+  const reduce = useReducedMotion();
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setDesktop(query.matches);
+    update(); query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   return (
     <section className="hero">
-      <motion.img style={{ y }} className="hero-image" src="/images/rijnmun-photo4.webp" alt="RijnMUN delegates collaborating during a committee session" />
+      <motion.img style={{ y: desktop && !reduce ? y : 0 }} fetchPriority="high" decoding="async" className="hero-image" src="/images/rijnmun-photo4.webp" alt="RijnMUN delegates collaborating during a committee session" />
       <div className="hero-overlay" />
       <div className="globe-grid" aria-hidden="true" />
       <div className="hero-content">
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .15 }} className="eyebrow light">{content.home.heroEyebrow}</motion.p>
-        <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .85, ease }}>RIJNMUN<br /><span>2026</span></motion.h1>
-        <motion.p initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .25, duration: .7 }} className="hero-subtitle">{content.home.heroSubtitle.split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</motion.p>
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .35, duration: .7 }} className="hero-facts"><span><CalendarDays />{content.conference.dateLabel}</span><span><MapPin />{content.conference.location}</span></motion.div>
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .45, duration: .7 }} className="hero-actions"><Link className="button button-primary" to="/registration">Register <ArrowRight /></Link><Link className="button button-outline" to="/rijnmun-2026">Explore RijnMUN 2026</Link></motion.div>
+        <motion.p initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .15 }} className="eyebrow light">{content.home.heroEyebrow}</motion.p>
+        <motion.h1 initial={reduce ? false : { opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .85, ease }}>RIJNMUN<br /><span>2026</span></motion.h1>
+        <motion.p initial={reduce ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .25, duration: .7 }} className="hero-subtitle">{content.home.heroSubtitle.split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</motion.p>
+        <motion.div initial={reduce ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .35, duration: .7 }} className="hero-facts"><span><CalendarDays />{content.conference.dateLabel}</span><span><MapPin />{content.conference.location}</span></motion.div>
+        <motion.div initial={reduce ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .45, duration: .7 }} className="hero-actions"><Link className="button button-primary" to="/registration">Register <ArrowRight /></Link><Link className="button button-outline" to="/rijnmun-2026">Explore RijnMUN 2026</Link></motion.div>
       </div>
       <a className="scroll-cue" href="#about"><span>Scroll to explore</span><ArrowDown /></a>
     </section>
@@ -160,7 +188,7 @@ function Stats() {
 
 function CommitteeStrip({ limit }: { limit?: number }) {
   const visible = limit ? committees.slice(0, limit) : committees;
-  return <div className="committee-strip">{visible.map((committee, index) => <Reveal key={committee.abbreviation} className="committee-panel" delay={index * .06}><Link to={`/committees#${committee.abbreviation.toLowerCase()}`}><img src={committee.image} alt={`RijnMUN delegates representing ${committee.shortName}`} /><div className="panel-shade" /><div className="committee-panel-content"><span className="mono">Committee / {String(index + 1).padStart(2, "0")}</span><h3>{committee.abbreviation}</h3><p>{committee.shortName}</p><div className="committee-codes">{committee.issues.map(issue => <span key={issue.code}>{issue.code}</span>)}</div><ArrowRight /></div></Link></Reveal>)}</div>;
+  return <div className="committee-strip">{visible.map((committee, index) => <Reveal key={committee.abbreviation} className="committee-panel" delay={index * .06}><Link to={`/committees#${committee.abbreviation.toLowerCase()}`}><img src={committee.image} srcSet={responsivePhoto(committee.image)} sizes="(max-width: 800px) 100vw, 40vw" loading="lazy" decoding="async" alt={`RijnMUN delegates representing ${committee.shortName}`} /><div className="panel-shade" /><div className="committee-panel-content"><span className="mono">Committee / {String(index + 1).padStart(2, "0")}</span><h3>{committee.abbreviation}</h3><p>{committee.shortName}</p><div className="committee-codes">{committee.issues.map(issue => <span key={issue.code}>{issue.code}</span>)}</div><ArrowRight /></div></Link></Reveal>)}</div>;
 }
 
 function Journey() {
@@ -169,21 +197,22 @@ function Journey() {
 }
 
 function NewsGrid() {
-  return <div className="news-grid">{news.map((article, index) => <Reveal key={article.title} className={`news-item ${index === 0 ? "featured" : ""}`} delay={index * .06}><Link to={article.href}><div className="news-image"><img src={article.image} alt="" /></div><p className="mono">{article.category} / {article.date}</p><h3>{article.title}</h3><p>{article.description}</p><span className="text-link">Read more <ArrowRight size={16} /></span></Link></Reveal>)}</div>;
+  return <div className="news-grid">{news.map((article, index) => <Reveal key={article.title} className={`news-item ${index === 0 ? "featured" : ""}`} delay={index * .06}><Link to={article.href}><div className="news-image"><img src={article.image} srcSet={responsivePhoto(article.image)} sizes="(max-width: 800px) 100vw, 35vw" loading="lazy" decoding="async" alt="" /></div><p className="mono">{article.category} / {article.date}</p><h3>{article.title}</h3><p>{article.description}</p><span className="text-link">Read more <ArrowRight size={16} /></span></Link></Reveal>)}</div>;
 }
 
 function Home() {
   const content = useSiteContent();
-  return <><Hero /><Countdown />{content.announcement.enabled && <Announcement />}<main><section id="about" className="about-home"><Reveal className="about-photo"><img src="/images/rijnmun-photo1.webp" alt="Two RijnMUN delegates preparing their committee work" /><blockquote>“Ideas.<br />Dialogue.<br />Action.”</blockquote></Reveal><Reveal className="about-copy"><p className="eyebrow">{content.home.aboutLabel}</p><h2>{content.home.aboutHeading}</h2><p>{content.home.aboutBodyOne}</p><p>{content.home.aboutBodyTwo}</p><ArrowLink to="/rijnmun-2026">Discover RijnMUN</ArrowLink></Reveal></section><Stats /><section className="committees-home"><SectionHeading light label="Committees" title={content.home.committeesHeading} aside={<ArrowLink to="/committees" className="text-link light">Explore all committees</ArrowLink>} /><CommitteeStrip /></section><Journey /><section className="news-home"><SectionHeading label="Latest news" title={content.home.newsHeading} aside={<ArrowLink to="/news">View all updates</ArrowLink>} /><NewsGrid /></section><SocialSection /><CtaBand /></main></>;
+  return <><Hero /><Countdown />{content.announcement.enabled && <Announcement />}<main><section id="about" className="about-home"><Reveal className="about-photo"><img src="/images/rijnmun-photo1.webp" loading="lazy" decoding="async" alt="Two RijnMUN delegates preparing their committee work" /><blockquote>“Ideas.<br />Dialogue.<br />Action.”</blockquote></Reveal><Reveal className="about-copy"><p className="eyebrow">{content.home.aboutLabel}</p><h2>{content.home.aboutHeading}</h2><p>{content.home.aboutBodyOne}</p><p>{content.home.aboutBodyTwo}</p><ArrowLink to="/rijnmun-2026">Discover RijnMUN</ArrowLink></Reveal></section><Stats /><section className="committees-home"><SectionHeading light label="Committees" title={content.home.committeesHeading} aside={<ArrowLink to="/committees" className="text-link light">Explore all committees</ArrowLink>} /><CommitteeStrip /></section><Journey /><section className="news-home"><SectionHeading label="Latest news" title={content.home.newsHeading} aside={<ArrowLink to="/news">View all updates</ArrowLink>} /><NewsGrid /></section><SocialSection /><CtaBand /></main></>;
 }
 
 function Announcement() { const { announcement } = useSiteContent(); return <section className="announcement"><div><p className="eyebrow">{announcement.label}</p><h2>{announcement.title}</h2><p>{announcement.body}</p></div>{announcement.link && <ArrowLink to={announcement.link}>{announcement.linkLabel || "Learn more"}</ArrowLink>}</section>; }
 
 function SocialSection() { const { social } = useSiteContent(); return <section className="social-section"><div><p className="eyebrow light">Follow RijnMUN</p><h2>Conference life, as it happens.</h2><p>Meet the community and follow announcements from the Secretariat.</p></div><div><a href={social.instagram} target="_blank" rel="noreferrer"><img src="/images/instagram-black.webp" alt="" /><span><small>Instagram</small><b>@rijn.mun</b></span><ExternalLink /></a><a href={social.tiktok} target="_blank" rel="noreferrer"><img src="/images/tiktok-black.webp" alt="" /><span><small>TikTok</small><b>@rijn_mun</b></span><ExternalLink /></a></div></section>; }
 
-function CtaBand() { const content = useSiteContent(); return <section className="cta-band"><img src="/images/leiden-korenbeursbrug.webp" alt="Leiden city centre" /><div><p className="eyebrow light">RijnMUN 2026 · Oegstgeest</p><h2>{content.home.ctaHeading}</h2><p>{content.conference.dateLabel}</p></div><Link className="button button-primary" to="/registration">Register now <ArrowRight /></Link></section>; }
+function CtaBand() { const content = useSiteContent(); return <section className="cta-band"><img src="/images/leiden-korenbeursbrug.webp" loading="lazy" decoding="async" alt="Leiden city centre" /><div><p className="eyebrow light">RijnMUN 2026 · Oegstgeest</p><h2>{content.home.ctaHeading}</h2><p>{content.conference.dateLabel}</p></div><Link className="button button-primary" to="/registration">Register now <ArrowRight /></Link></section>; }
 
 const pageMeta: Record<string, [string, string]> = {
+  "/news": ["From the Secretariat | RijnMUN 2026", "Read conference announcements, registration updates and photo archives from the RijnMUN Secretariat."],
   "/rijnmun-2026": ["General Information | RijnMUN 2026", "Learn about RijnMUN, a beginner-friendly Model United Nations conference in Oegstgeest."],
   "/committees": ["Committees & Issues | RijnMUN 2026", "Explore the RijnMUN 2026 committees, issues and research reports."],
   "/programme": ["Programme | RijnMUN 2026", "View the three-day RijnMUN 2026 conference programme."],
@@ -198,17 +227,29 @@ const pageMeta: Record<string, [string, string]> = {
 };
 
 function PageHero({ eyebrow, title, intro, image = "/images/rijnmun-photo3.webp" }: { eyebrow: string; title: string; intro: string; image?: string }) {
-  return <section className="page-hero"><img src={image} alt="" /><div className="page-hero-shade" /><div><p className="eyebrow light">{eyebrow}</p><h1>{title}</h1><p>{intro}</p></div></section>;
+  return <section className="page-hero"><img src={image} srcSet={responsivePhoto(image)} sizes="100vw" fetchPriority="high" decoding="async" alt="" /><div className="page-hero-shade" /><div><p className="eyebrow light">{eyebrow}</p><h1>{title}</h1><p>{intro}</p></div></section>;
 }
 
 function GeneralInformation() {
-  return <><PageHero eyebrow="RijnMUN 2026" title="A first step into diplomacy." intro="A three-day, beginner-friendly Model United Nations conference organised by students." /><main className="page-main"><section className="editorial-split"><SectionHeading label="What is MUN?" title="Represent a country. Debate the world." /><div className="prose"><p>Model United Nations is an educational simulation where students take on the role of a country’s representative and debate current global issues. Delegates research their country’s position, negotiate with others and work towards shared resolutions.</p><p>Debates are moderated by experienced student officers selected by the RijnMUN Board of Directors. Participants build public speaking, critical thinking and international-awareness skills in a formal but welcoming setting.</p></div></section><section className="feature-photo"><img src="/images/rijnmun-photo2.webp" alt="A committee session in progress at RijnMUN" /></section><section className="editorial-split pale"><SectionHeading label="Designed for beginners" title="Serious debate. Supported participation." /><div className="prose"><p>RijnMUN is hosted by students of Het Rijnlands Lyceum Oegstgeest and aimed at high-school delegates aged 14–18. Workshops and clear guidance help newcomers understand THIMUN procedure and take part with confidence.</p><div className="notice"><ShieldCheck /><p><b>Please note</b><br />RijnMUN does not provide accommodation. Delegates should bring a device, charger, pen, paper and lunch for Friday.</p></div><ArrowLink to="/resources">Prepare with delegate resources</ArrowLink></div></section><Journey /><CtaBand /></main></>;
+  const content = useSiteContent();
+  const reduce = useReducedMotion();
+  const reveal = { initial: reduce ? false as const : { opacity: 0, y: 18 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-40px" }, transition: { duration: reduce ? 0 : .5, ease } };
+  return <><PageHero eyebrow="RijnMUN 2026" title="A first step into diplomacy." intro="A three-day, beginner-friendly Model United Nations conference organised by students." /><main className="page-main"><motion.section {...reveal} className="editorial-split"><SectionHeading label="What is MUN?" title="Represent a country. Debate the world." /><div className="prose"><p>Model United Nations is an educational simulation where students take on the role of a country’s representative and debate current global issues. Delegates research their country’s position, negotiate with others and work towards shared resolutions.</p><p>Debates are moderated by experienced student officers selected by the RijnMUN Board of Directors. Participants build public speaking, critical thinking and international-awareness skills in a formal but welcoming setting.</p><dl className="conference-facts"><div><dt>Conference dates</dt><dd>{content.conference.dateLabel}</dd></div><div><dt>Venue</dt><dd><Link to="/venue">{content.conference.location}<ArrowRight size={16} /></Link></dd></div><div><dt>Participants</dt><dd>High-school delegates aged 14–18</dd></div></dl></div></motion.section><motion.section {...reveal} className="feature-photo"><img src="/images/rijnmun-photo2.webp" srcSet={responsivePhoto("/images/rijnmun-photo2.webp")} sizes="100vw" loading="lazy" decoding="async" alt="A committee session in progress at RijnMUN" /></motion.section><motion.section {...reveal} className="editorial-split pale"><SectionHeading label="Designed for beginners" title="Serious debate. Supported participation." /><div className="prose"><p>RijnMUN is hosted by students of Het Rijnlands Lyceum Oegstgeest and aimed at high-school delegates aged 14–18. Workshops and clear guidance help newcomers understand THIMUN procedure and take part with confidence.</p><div className="notice"><ShieldCheck /><p><b>Please note</b><br />RijnMUN does not provide accommodation. Delegates should bring a device, charger, pen, paper and lunch for Friday.</p></div><ArrowLink to="/resources">Prepare with delegate resources</ArrowLink></div></motion.section><Journey /><CtaBand /></main></>;
 }
 
 function CommitteesPage() {
-  const [active, setActive] = useState(0);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const reduce = useReducedMotion();
+  const indexFromHash = () => Math.max(0, committees.findIndex(item => `#${item.abbreviation.toLowerCase()}` === location.hash.toLowerCase()));
+  const [active, setActive] = useState(indexFromHash);
+  useEffect(() => setActive(indexFromHash()), [location.hash]);
+  const selectCommittee = (index: number) => {
+    setActive(index);
+    navigate(`/committees#${committees[index].abbreviation.toLowerCase()}`, { replace: true, preventScrollReset: true });
+  };
   const committee = committees[active];
-  return <><PageHero eyebrow="RijnMUN 2026" title="Committees & issues." intro="Convergence: where perspectives unite for global progress." image="/images/rijnmun-photo2.webp" /><main className="page-main"><section className="committee-explorer"><div className="committee-index" role="tablist" aria-label="Select a committee">{committees.map((item, index) => <button id={item.abbreviation.toLowerCase()} key={item.abbreviation} role="tab" aria-selected={active === index} onClick={() => setActive(index)}><span>{String(index + 1).padStart(2, "0")}</span><b>{item.abbreviation}</b><small>{item.shortName}</small><ArrowRight /></button>)}</div><AnimatePresence mode="wait"><motion.article key={committee.abbreviation} className="committee-detail" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .35 }}><img src={committee.image} alt={`Delegates in a RijnMUN ${committee.name} session`} /><div><p className="eyebrow">Committee / {committee.abbreviation}</p><h2>{committee.name}</h2><p className="chairs">Chairs to be announced.</p>{committee.issues.map(issue => <div className="issue" key={issue.code}><span className="mono">Issue / {issue.code}</span><h3>{issue.title}</h3>{issue.report ? <a href={issue.report}>Open research report</a> : <span className="muted">Research report to be announced</span>}</div>)}</div></motion.article></AnimatePresence></section><section className="all-mobile-committees">{committees.map(c => <article key={c.abbreviation}><p className="eyebrow">{c.abbreviation}</p><h2>{c.name}</h2><p>Chairs to be announced.</p>{c.issues.map(i => <div className="issue" key={i.code}><span className="mono">Issue / {i.code}</span><h3>{i.title}</h3><span className="muted">Research report to be announced</span></div>)}</article>)}</section><section className="resources-callout"><div><p className="eyebrow">Delegate preparation</p><h2>Start with the issue. Arrive with a position.</h2></div><ArrowLink to="/resources">Open delegate resources</ArrowLink></section></main></>;
+  return <><PageHero eyebrow="RijnMUN 2026" title="Committees & issues." intro="Convergence: where perspectives unite for global progress." image="/images/rijnmun-photo2.webp" /><main className="page-main"><section className="committee-explorer"><div className="committee-index" role="tablist" aria-label="Select a committee">{committees.map((item, index) => <button id={item.abbreviation.toLowerCase()} key={item.abbreviation} role="tab" aria-selected={active === index} aria-controls="committee-panel" tabIndex={active === index ? 0 : -1} onClick={() => selectCommittee(index)} onKeyDown={(event) => { const direction = ["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 0; if (!direction && !["Home", "End"].includes(event.key)) return; event.preventDefault(); const selected = event.key === "Home" ? 0 : event.key === "End" ? committees.length - 1 : (index + direction + committees.length) % committees.length; selectCommittee(selected); document.getElementById(committees[selected].abbreviation.toLowerCase())?.focus(); }}><span>{String(index + 1).padStart(2, "0")}</span><b>{item.abbreviation}</b><small>{item.shortName}</small><ArrowRight /></button>)}</div><AnimatePresence mode="wait"><motion.article key={committee.abbreviation} id="committee-panel" role="tabpanel" aria-labelledby={committee.abbreviation.toLowerCase()} tabIndex={0} className="committee-detail" initial={reduce ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .35 }}><img src={committee.image} srcSet={responsivePhoto(committee.image)} sizes="(max-width: 800px) 100vw, 40vw" loading="lazy" decoding="async" alt={`Delegates in a RijnMUN ${committee.name} session`} /><div><p className="eyebrow">Committee / {committee.abbreviation}</p><h2>{committee.name}</h2><p className="chairs">{committee.chairs.length ? `Chairs: ${committee.chairs.join(" & ")}` : "Chairs to be announced."}</p>{committee.issues.map(issue => <div className="issue" key={issue.code}><span className="mono">Issue / {issue.code}</span><h3>{issue.title}</h3>{issue.report ? <a href={issue.report}>Open research report</a> : <span className="muted">Research report to be announced</span>}</div>)}</div></motion.article></AnimatePresence></section><section className="resources-callout"><div><p className="eyebrow">Delegate preparation</p><h2>Start with the issue. Arrive with a position.</h2></div><ArrowLink to="/resources">Open delegate resources</ArrowLink></section></main></>;
 }
 
 function ProgrammePage() {
@@ -219,12 +260,12 @@ function ProgrammePage() {
 function PeoplePage({ kind }: { kind: "board" | "speakers" }) {
   const isBoard = kind === "board";
   const people = isBoard ? board : speakers;
-  return <><PageHero eyebrow="RijnMUN 2026" title={isBoard ? "Board of Directors." : "Guest speakers & advisors."} intro={isBoard ? "The student leadership organising RijnMUN 2026." : "Perspectives from diplomacy, education and international affairs."} image="/images/rijnmun-photo1.webp" /><main className="page-main"><section className="empty-state">{people.length === 0 ? <><div className="empty-mark">RM</div><p className="eyebrow">Announcement pending</p><h2>{isBoard ? "Board profiles will be announced soon." : "Guest speakers and advisors will be announced soon."}</h2><p>The layout is ready to display portraits and roles as soon as the Secretariat publishes them.</p><ArrowLink to="/contact">Contact the Secretariat</ArrowLink></> : null}</section></main></>;
+  return <><PageHero eyebrow="RijnMUN 2026" title={isBoard ? "Board of Directors." : "Guest speakers & advisors."} intro={isBoard ? "The student leadership organising RijnMUN 2026." : "Perspectives from diplomacy, education and international affairs."} image="/images/rijnmun-photo1.webp" /><main className="page-main"><section className="empty-state">{people.length === 0 ? <><div className="empty-mark">RM</div><p className="eyebrow">Announcement pending</p><h2>{isBoard ? "Board profiles will be announced soon." : "Guest speakers and advisors will be announced soon."}</h2><p>The layout is ready to display portraits and roles as soon as the Secretariat publishes them.</p><ArrowLink to="/contact">Contact the Secretariat</ArrowLink></> : <div className="people-grid">{people.map(person => <article className="person-card" key={person.name}>{person.image ? <img src={person.image} alt={person.name} loading="lazy" decoding="async" /> : <div className="person-initials" aria-hidden="true">{person.name.split(" ").map(part => part[0]).slice(0, 2).join("")}</div>}<h2>{person.name}</h2><p>{person.role}</p></article>)}</div>}</section></main></>;
 }
 
 function VenuePage() {
   const content = useSiteContent();
-  return <><PageHero eyebrow="Venue & Leiden" title="Meet in Oegstgeest." intro="RijnMUN takes place at Het Rijnlands Lyceum Oegstgeest, close to the historic city of Leiden." image="/images/rlo_front.webp" /><main className="page-main"><section className="venue-address"><div><p className="eyebrow">Conference venue</p><h2>{content.conference.location}</h2><p>{content.conference.address}</p><a className="button button-primary" target="_blank" rel="noreferrer" href="https://maps.app.goo.gl/c1nDmYniANtAFs1x7">Open in Maps <ExternalLink /></a></div><img src="/images/rlo_front.webp" alt="Entrance of Het Rijnlands Lyceum Oegstgeest" /></section><section className="travel-grid"><article><span className="mono">Arrival / Car</span><h3>By car</h3><p>RLO is near Exit 7 Oegstgeest–Rijnsburg on the A44. Parking around the school is limited.</p></article><article><span className="mono">Arrival / Public transport</span><h3>By public transport</h3><p>The venue is about a ten-minute walk from the Leidsebuurt bus stop. From Leiden Centraal, the current site recommends buses 20, 21 or 57. Check live travel information before departure.</p><a href="https://9292.nl" target="_blank" rel="noreferrer">Plan with 9292 <ExternalLink size={16} /></a></article></section><section className="leiden"><img src="/images/leiden-uni-academiegebouw.webp" alt="Leiden University Academiegebouw" /><div><p className="eyebrow">About Leiden</p><h2>A city shaped by knowledge.</h2><p>Leiden is known for its historic centre and academic life. Leiden University, founded in 1575, is the oldest university in the Netherlands. International visitors can explore courtyards, city gates, gardens and windmills around the city.</p><a className="text-link" href="https://www.visitleiden.nl" target="_blank" rel="noreferrer">Explore Leiden <ExternalLink size={16} /></a></div></section></main></>;
+  return <><PageHero eyebrow="Venue & Leiden" title="Meet in Oegstgeest." intro="RijnMUN takes place at Het Rijnlands Lyceum Oegstgeest, close to the historic city of Leiden." image="/images/rlo_front.webp" /><main className="page-main"><section className="venue-address"><div><p className="eyebrow">Conference venue</p><h2>{content.conference.location}</h2><p>{content.conference.address}</p><a className="button button-primary" target="_blank" rel="noreferrer" href="https://maps.app.goo.gl/c1nDmYniANtAFs1x7">Open in Maps <ExternalLink /></a></div><img src="/images/rlo_front.webp" loading="lazy" decoding="async" alt="Entrance of Het Rijnlands Lyceum Oegstgeest" /></section><section className="travel-grid"><article><span className="mono">Arrival / Car</span><h3>By car</h3><p>RLO is near Exit 7 Oegstgeest–Rijnsburg on the A44. Parking around the school is limited.</p></article><article><span className="mono">Arrival / Public transport</span><h3>By public transport</h3><p>The venue is about a ten-minute walk from the Leidsebuurt bus stop. From Leiden Centraal, the current site recommends buses 20, 21 or 57. Check live travel information before departure.</p><a href="https://9292.nl" target="_blank" rel="noreferrer">Plan with 9292 <ExternalLink size={16} /></a></article></section><section className="leiden"><img src="/images/leiden-uni-academiegebouw.webp" loading="lazy" decoding="async" alt="Leiden University Academiegebouw" /><div><p className="eyebrow">About Leiden</p><h2>A city shaped by knowledge.</h2><p>Leiden is known for its historic centre and academic life. Leiden University, founded in 1575, is the oldest university in the Netherlands. International visitors can explore courtyards, city gates, gardens and windmills around the city.</p><a className="text-link" href="https://www.visitleiden.nl" target="_blank" rel="noreferrer">Explore Leiden <ExternalLink size={16} /></a></div></section></main></>;
 }
 
 function RegistrationPage() {
@@ -246,11 +287,17 @@ function ContactPage() {
 function MetaAndScroll() {
   const location = useLocation();
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, behavior: "instant" });
     const [title, description] = pageMeta[location.pathname] || ["RijnMUN 2026 | Model United Nations Oegstgeest", "RijnMUN is a beginner-friendly Model United Nations conference at Rijnlands Lyceum Oegstgeest."];
     document.title = title;
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute("content", description);
+    document.querySelector('meta[property="og:title"]')?.setAttribute("content", title);
+    document.querySelector('meta[property="og:description"]')?.setAttribute("content", description);
+    const url = `https://www.rijnmun.org${location.pathname}`;
+    document.querySelector('meta[property="og:url"]')?.setAttribute("content", url);
+    document.querySelector('link[rel="canonical"]')?.setAttribute("href", url);
+    document.querySelector('meta[name="robots"]')?.setAttribute("content", location.pathname.startsWith("/webdashadmin") ? "noindex, nofollow" : "index, follow");
   }, [location.pathname]);
   return null;
 }
@@ -300,6 +347,8 @@ function VisualEditingBridge() {
         const key = `${location.pathname}::${getVisualPath(element)}`;
         const override = content.visual[key];
         if (override?.type === "image" && isImage) {
+          element.removeAttribute("srcset");
+          element.removeAttribute("sizes");
           if (element.getAttribute("src") !== override.value) element.setAttribute("src", override.value);
           if (override.alt !== undefined) element.setAttribute("alt", override.alt);
         }
@@ -309,7 +358,7 @@ function VisualEditingBridge() {
     };
     scan();
     const observer = new MutationObserver(scan);
-    observer.observe(document.body, { childList: true, subtree: true });
+    if (preview || Object.keys(content.visual).length) observer.observe(document.body, { childList: true, subtree: true });
     const onClick = (event: MouseEvent) => {
       if (!preview || !editMode) return;
       const target = (event.target as Element).closest<HTMLElement>("[data-visual-key]");
@@ -331,8 +380,9 @@ function VisualEditingBridge() {
 
 function SiteRoutes() {
   const location = useLocation();
+  const reduce = useReducedMotion();
   if (location.pathname.startsWith("/webdashadmin")) return <><MetaAndScroll /><Routes><Route path="/webdashadmin" element={<AdminPage />} /><Route path="*" element={<Navigate to="/webdashadmin" replace />} /></Routes></>;
-  return <><MetaAndScroll /><Header /><AnimatePresence mode="wait"><motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .3 }}><Routes location={location}><Route path="/" element={<Home />} /><Route path="/rijnmun-2026" element={<GeneralInformation />} /><Route path="/committees" element={<CommitteesPage />} /><Route path="/programme" element={<ProgrammePage />} /><Route path="/board" element={<PeoplePage kind="board" />} /><Route path="/speakers" element={<PeoplePage kind="speakers" />} /><Route path="/venue" element={<VenuePage />} /><Route path="/registration" element={<RegistrationPage />} /><Route path="/resources" element={<ResourcesPage />} /><Route path="/news" element={<NewsPage />} /><Route path="/archive" element={<ArchivePage />} /><Route path="/contact" element={<ContactPage />} /><Route path="/rijnmun-2026/general-information" element={<Navigate to="/rijnmun-2026" replace />} /><Route path="/rijnmun-2026/committees-and-issues" element={<Navigate to="/committees" replace />} /><Route path="/rijnmun-2026/programme-of-events" element={<Navigate to="/programme" replace />} /><Route path="/rijnmun-2026/board-of-directors" element={<Navigate to="/board" replace />} /><Route path="/rijnmun-2026/speakers-and-advisors" element={<Navigate to="/speakers" replace />} /><Route path="/rijnmun-2026/venue" element={<Navigate to="/venue" replace />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes><Footer /></motion.div></AnimatePresence></>;
+  return <><MetaAndScroll /><Header /><AnimatePresence mode="wait"><motion.div id="main-content" tabIndex={-1} key={location.pathname} initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : .2 }}><Routes location={location}><Route path="/" element={<Home />} /><Route path="/rijnmun-2026" element={<GeneralInformation />} /><Route path="/committees" element={<CommitteesPage />} /><Route path="/programme" element={<ProgrammePage />} /><Route path="/board" element={<PeoplePage kind="board" />} /><Route path="/speakers" element={<PeoplePage kind="speakers" />} /><Route path="/venue" element={<VenuePage />} /><Route path="/registration" element={<RegistrationPage />} /><Route path="/resources" element={<ResourcesPage />} /><Route path="/news" element={<NewsPage />} /><Route path="/archive" element={<ArchivePage />} /><Route path="/contact" element={<ContactPage />} /><Route path="/rijnmun-2026/general-information" element={<Navigate to="/rijnmun-2026" replace />} /><Route path="/rijnmun-2026/committees-and-issues" element={<Navigate to="/committees" replace />} /><Route path="/rijnmun-2026/programme-of-events" element={<Navigate to="/programme" replace />} /><Route path="/rijnmun-2026/board-of-directors" element={<Navigate to="/board" replace />} /><Route path="/rijnmun-2026/speakers-and-advisors" element={<Navigate to="/speakers" replace />} /><Route path="/rijnmun-2026/venue" element={<Navigate to="/venue" replace />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes><Footer /></motion.div></AnimatePresence></>;
 }
 
-export function App() { return <BrowserRouter><SiteContentProvider><SiteRoutes /></SiteContentProvider></BrowserRouter>; }
+export function App() { return <MotionConfig reducedMotion="user"><BrowserRouter><SiteContentProvider><SiteRoutes /></SiteContentProvider></BrowserRouter></MotionConfig>; }
