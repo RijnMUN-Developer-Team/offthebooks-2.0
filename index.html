@@ -3,6 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      #initial-loading-screen { display: none; }
+      html.intro-active #initial-loading-screen { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: #fff; opacity: 1; transition: opacity 600ms ease; }
+      html.intro-active #initial-loading-screen.is-leaving { opacity: 0; pointer-events: none; }
+      #initial-loading-screen video { display: block; width: min(650px, 90vw, 150vh); height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #fff; }
+      html.intro-active { overflow: hidden; }
+      @media (max-width: 1024px) { #initial-loading-screen video { width: min(550px, 75vw, 150vh); } }
+      @media (max-width: 600px) { #initial-loading-screen video { width: min(400px, 90vw, 150vh); } }
+      @media (prefers-reduced-motion: reduce) { html.intro-active #initial-loading-screen { display: none; transition: none; } html.intro-active { overflow: auto; } }
+    </style>
+    <script>
+      // Paint the white shell before the application, without delaying editor previews.
+      if (window.self === window.top && !location.pathname.startsWith('/webdashadmin') && !new URLSearchParams(location.search).has('preview') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('intro-active');
+        // Last-resort escape even if the application bundle cannot initialise.
+        window.setTimeout(function () {
+          var screen = document.getElementById('initial-loading-screen');
+          if (screen) screen.classList.add('is-leaving');
+          window.setTimeout(function () {
+            if (screen) screen.remove();
+            document.documentElement.classList.remove('intro-active');
+            var root = document.getElementById('root');
+            if (root) root.inert = false;
+          }, 600);
+        }, 12000);
+      }
+    </script>
     <meta name="description" content="RijnMUN is a beginner-friendly Model United Nations conference at Rijnlands Lyceum Oegstgeest." />
     <meta name="theme-color" content="#061f3d" />
     <meta property="og:title" content="RijnMUN 2026" />
@@ -22,6 +49,9 @@
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Event","name":"RijnMUN 2026","startDate":"2026-11-20","endDate":"2026-11-22","eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode","eventStatus":"https://schema.org/EventScheduled","location":{"@type":"Place","name":"Het Rijnlands Lyceum Oegstgeest","address":"Apollolaan 1, 2341 BA Oegstgeest, The Netherlands"},"organizer":{"@type":"Organization","name":"RijnMUN","url":"https://www.rijnmun.org"}}</script>
   </head>
   <body>
+    <section id="initial-loading-screen" role="status" aria-label="Loading RijnMUN">
+      <video data-src="/videos/rijnmun-logo-reveal.mp4" autoplay muted playsinline preload="auto" width="1920" height="1080" aria-hidden="true" tabindex="-1"></video>
+    </section>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test:sites": "node --test tests/sites-worker.test.mjs",
-    "test:ui": "node scripts/check-public-site.mjs"
+    "test:ui": "node scripts/check-public-site.mjs",
+    "test:loading": "node scripts/check-loading-screen.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.0",
